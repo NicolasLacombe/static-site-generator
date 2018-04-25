@@ -6,6 +6,8 @@ import re
 import pathlib
 import sys
 import warnings
+import http.server
+import socketserver
 
 from pathlib import Path
 
@@ -63,7 +65,7 @@ def generate(templateFile, jsonData, outputDir):
         print('File {} is not configured to be expanded in Json data: {}'.format(fileName, filesMapping))
         return
 
-    templateFilePath = os.path.dirname(os.path.realpath(__file__))
+    templateFilePath = os.path.dirname(os.path.realpath(templateFile))
     languages        = jsonData[LANGUAGES_KEY]
 
 
@@ -74,7 +76,7 @@ def generate(templateFile, jsonData, outputDir):
 
     def getIncludeFileContent(match):
         """Read a file, expanding <!-- #include --> statements."""
-        fileToRead = os.path.join(templateFilePath, os.path.abspath(match.group(2)))
+        fileToRead = os.path.join(templateFilePath, match.group(2))
         if os.path.exists(fileToRead):
             return open(fileToRead, encoding='utf-8').read()
 
@@ -117,6 +119,9 @@ def main(argv):
                             action='store',
                             dest='json',
                             help= '[REQUIRED] Json file containing config & variables to expand')
+    arg_parser.add_argument('--serve',
+                            action="store_true",
+                            help= '[Optional] Start a server at output past')
 
     args = arg_parser.parse_args(args=argv)
 
@@ -133,6 +138,15 @@ def main(argv):
     for file in files:
         generate(file, jsonData, outputDir)
     #map(generate, files, jsonData, rootdir)
+
+    # Spawn server!
+    if args.serve:
+        assert os.path.exists(outputDir)
+        os.chdir(outputDir)
+        port = 8000
+        with socketserver.TCPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
+            print("serving local path {} at port {}".format(outputDir, port))
+            httpd.serve_forever()
 
 # ------------------------------------------------------------------------------
 # Main entry point
