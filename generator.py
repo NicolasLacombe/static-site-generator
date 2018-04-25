@@ -4,9 +4,9 @@ import json
 import glob
 import re
 import pathlib
+import sys
 
 from pathlib import Path
-
 
 # Json file format:
 # {
@@ -35,7 +35,7 @@ from pathlib import Path
 LANGUAGES_KEY    = 'languages'
 FILE_MAPPING_KEY = 'files_mapping'
 
-# --
+# ------------------------------------------------------------------------------
 
 def generate(templateFile, jsonData, outputDir):
     assert os.path.isfile(templateFile)
