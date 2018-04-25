@@ -11,14 +11,17 @@
 	
 	"fr":
 	{
-	  "key-foo" : "bar-fr"
+	  "key-foo" : "bar-fr",
+      "header-foo": "header-fr"
 	},
 	"en":
 	{
-	  "key-foo" : "bar-en"
+	  "key-foo" : "bar-en",
+      "header-foo": "header-en"
 	},
 	"ru":
 	{
-	  "key-foo" : "bar-ru"
+	  "key-foo" : "bar-ru",
+      "header-foo": "header-ru"
 	}
 }
