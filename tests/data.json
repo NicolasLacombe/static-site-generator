@@ -1,0 +1,24 @@
+{
+   "languages": ["fr", "ru", "en"],
+   "files_mapping":
+	{
+	  "foo.html" :
+	  {
+		  "fr": "foo_fr.html",
+		  "ru": "foo_ru.html"
+	  }
+	},
+	
+	"fr":
+	{
+	  "key-foo" : "bar-fr"
+	},
+	"en":
+	{
+	  "key-foo" : "bar-en"
+	},
+	"ru":
+	{
+	  "key-foo" : "bar-ru"
+	}
+}
