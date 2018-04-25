@@ -8,7 +8,11 @@ import sys
 import warnings
 import http.server
 import socketserver
+import time
+import threading
 
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from pathlib import Path
 
 # Json file format:
@@ -46,6 +50,26 @@ error_tmpl = """
 
 # ------------------------------------------------------------------------------
 
+class EventHandler(FileSystemEventHandler,):
+    def __init__(self, callback):
+        self._callback = callback
+
+    def on_moved(self, event):
+        super(EventHandler, self).on_moved(event)
+        self._callback()
+
+    def on_created(self, event):
+        super(EventHandler, self).on_created(event)
+        self._callback()
+
+    def on_deleted(self, event):
+        super(EventHandler, self).on_deleted(event)
+        self._callback()
+
+    def on_modified(self, event):
+        super(EventHandler, self).on_modified(event)
+        self._callback()
+
 def findAndReplaceKey(input, data):
     def replace(match):
         key = match.groups(0)[0]
@@ -62,7 +86,7 @@ def generate(templateFile, jsonData, outputDir):
     filesMapping     = jsonData[FILE_MAPPING_KEY]
     fileName         = os.path.basename(templateFile)
     if not fileName in filesMapping:
-        print('File {} is not configured to be expanded in Json data: {}'.format(fileName, filesMapping))
+        print('File {} is not configured to be expanded. Mapping: {}'.format(fileName, filesMapping))
         return
 
     templateFilePath = os.path.dirname(os.path.realpath(templateFile))
@@ -72,7 +96,7 @@ def generate(templateFile, jsonData, outputDir):
     outputFiles      = [os.path.join(outputDir, l, filesMapping[fileName][l] if (fileName in filesMapping and l in filesMapping[fileName]) else fileName) for l in languages]
 
     assert(len(outputFiles) == len(languages))
-    print('template file {} will be generated to {}'.format(fileName, outputFiles))
+    print('template file {} will be expaned to {}'.format(fileName, outputFiles))
 
     def getIncludeFileContent(match):
         """Read a file, expanding <!-- #include --> statements."""
@@ -122,6 +146,9 @@ def main(argv):
     arg_parser.add_argument('--serve',
                             action="store_true",
                             help= '[Optional] Start a server at output past')
+    arg_parser.add_argument('--scan',
+                            action="store_true",
+                            help= '[Optional] Continually scan input folder & generate output at every updated')
 
     args = arg_parser.parse_args(args=argv)
 
@@ -134,19 +161,56 @@ def main(argv):
     assert(os.path.isfile(jsonFile))
 
     jsonData = json.load(open(jsonFile, encoding='utf-8'))
-    files = [f for f in glob.glob(rootdir + '/**/*.html', recursive=True)]
-    for file in files:
-        generate(file, jsonData, outputDir)
-    #map(generate, files, jsonData, rootdir)
+
+    def findFilesAndGenerate():
+        print("Generating...")
+        files = [f for f in glob.glob(rootdir + '/**/*.html', recursive=True)]
+        for file in files:
+            generate(file, jsonData, outputDir)
+
+    findFilesAndGenerate()
 
     # Spawn server!
-    if args.serve:
-        assert os.path.exists(outputDir)
+    def serve():
         os.chdir(outputDir)
         port = 8000
         with socketserver.TCPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
             print("serving local path {} at port {}".format(outputDir, port))
-            httpd.serve_forever()
+            try:
+                httpd.serve_forever()
+            except:
+                print("Catched!")
+                raise
+
+
+    # Continually scan & regenerate
+    def scan():
+        event_handler = EventHandler(callback=findFilesAndGenerate)
+        observer = Observer()
+        observer.schedule(event_handler, rootdir, recursive=True)
+        observer.start()
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            observer.stop()
+            raise
+        observer.join()
+
+    assert os.path.exists(outputDir)
+    if args.serve:
+        t1 = threading.Thread(target=serve)
+        t1.daemon = True
+        t1.start()
+
+    if args.scan:
+       scan()
+    elif args.serve:
+        try:
+            while True:
+                time.sleep(1)
+        except:
+            raise
 
 # ------------------------------------------------------------------------------
 # Main entry point
