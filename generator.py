@@ -73,7 +73,7 @@ class EventHandler(FileSystemEventHandler,):
 
 def findAndReplaceKey(input, data):
     def replace(match):
-        key = match.groups(0)[0]
+        key = match.group(1)
         if key in data:
             return data[key]
         return ''
@@ -90,7 +90,7 @@ def generate(templateFile, jsonData, outputDir):
     generatedFilesPath = []
     if not fileName in filesMapping:
         print('File "{}" will be skipped'.format(fileName))
-        return
+        return []
 
     templateFilePath = os.path.dirname(os.path.realpath(templateFile))
     languages        = jsonData[LANGUAGES_KEY]
@@ -108,6 +108,14 @@ def generate(templateFile, jsonData, outputDir):
         warnings.warn(error)
         return error_tmpl % error
 
+    def getSpecialVariable(match):
+        if match.group('variable') == 'FILENAME':
+            langId = match.group('lang').lower()
+            return filesMapping[fileName][langId] if fileName in filesMapping and langId in filesMapping[fileName] else fileName
+        else:
+            print('Special Variable {} Unknown!'.format(match.group(1)))
+
+
     with open(templateFile, 'r') as fInput:
         content = fInput.read()
         # Expand file include
@@ -115,11 +123,28 @@ def generate(templateFile, jsonData, outputDir):
                          getIncludeFileContent,
                          content)
 
+        # Expand "special" variable
+        content = re.sub(r'\$\$(?P<variable>[a-zA-Z-.]+)_*(?P<lang>[A-Z]*)\$\$',
+                         getSpecialVariable,
+                         content)
+
         # Expand Key per language
         for index, lang in enumerate(languages):
             assert lang in jsonData
             languageData = jsonData[lang]
             expandedContent = findAndReplaceKey(content, languageData)
+
+            def replaceLink(match):
+                path = match.group('path')
+                fileName = match.group('file')
+                return 'href="{}{}"'.format(
+                    path,
+                    filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName)
+
+            # Expand Link
+            expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z]*\/)*)(?P<file>[a-zA-Z-_.]+)\"',
+                                     replaceLink,
+                                     expandedContent)
 
             pathlib.Path(os.path.dirname(outputFiles[index])).mkdir(parents=True, exist_ok=True)
             with codecs.open(outputFiles[index], 'w', 'utf-8') as fOutput:
@@ -176,9 +201,10 @@ def main(argv):
 
         print('Generating from {} to {}'.format(rootdir, outputDir))
         files = [f for f in glob.glob(rootdir + '/**/*.html', recursive=True)]
+        generatedFiles = []
         for file in files:
-            generatedFiles = generate(file, jsonData, outputDir)
-        print('Generated {} files'.format(generatedFiles))
+            generatedFiles.append(generate(file, jsonData, outputDir))
+        print('Generated {} files'.format(len(generatedFiles)))
 
     findFilesAndGenerate()
 

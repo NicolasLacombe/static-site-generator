@@ -1,5 +1,6 @@
 # static-site-generator
-Python 3.6 script that can generate a static website by expanding json content into html template.
+Python 3 script that can generate a static website by expanding json content into html template.
+If template file contains href link to files that will be generated, then the links will be expanded.
 Support "Server Side Include" syntax too, so inclusion of html template into other template works too.
 
 Optionally:

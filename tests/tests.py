@@ -13,7 +13,7 @@ class testGenerator(unittest.TestCase):
         shutil.rmtree(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output'), ignore_errors=True)
         pass
     def tearDown(self):
-        shutil.rmtree(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output'), ignore_errors=True)
+        #shutil.rmtree(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'output'), ignore_errors=True)
         pass
 
     # --
