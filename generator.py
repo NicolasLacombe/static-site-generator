@@ -10,6 +10,7 @@ import http.server
 import socketserver
 import time
 import threading
+import codecs
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -80,23 +81,22 @@ def findAndReplaceKey(input, data):
     output = re.sub(r'\{\{([a-zZ-Z-_]*)\}\}', replace, input)
     return output
 
+# ------------------------------------------------------------------------------
 
 def generate(templateFile, jsonData, outputDir):
     assert os.path.isfile(templateFile)
-    filesMapping     = jsonData[FILE_MAPPING_KEY]
-    fileName         = os.path.basename(templateFile)
+    filesMapping      = jsonData[FILE_MAPPING_KEY]
+    fileName          = os.path.basename(templateFile)
+    generatedFilesPath = []
     if not fileName in filesMapping:
-        print('File {} is not configured to be expanded. Mapping: {}'.format(fileName, filesMapping))
+        print('File "{}" will be skipped'.format(fileName))
         return
 
     templateFilePath = os.path.dirname(os.path.realpath(templateFile))
     languages        = jsonData[LANGUAGES_KEY]
-
-
     outputFiles      = [os.path.join(outputDir, l, filesMapping[fileName][l] if (fileName in filesMapping and l in filesMapping[fileName]) else fileName) for l in languages]
 
     assert(len(outputFiles) == len(languages))
-    print('template file {} will be expaned to {}'.format(fileName, outputFiles))
 
     def getIncludeFileContent(match):
         """Read a file, expanding <!-- #include --> statements."""
@@ -122,8 +122,13 @@ def generate(templateFile, jsonData, outputDir):
             expandedContent = findAndReplaceKey(content, languageData)
 
             pathlib.Path(os.path.dirname(outputFiles[index])).mkdir(parents=True, exist_ok=True)
-            with open(outputFiles[index], 'w') as fOutput:
+            with codecs.open(outputFiles[index], 'w', 'utf-8') as fOutput:
                 fOutput.write(expandedContent)
+
+            generatedFilesPath.append(outputFiles[index])
+            print('"{}" => {}'.format(fileName, outputFiles[index]))
+
+    return generatedFilesPath
 
 # ------------------------------------------------------------------------------
 
@@ -143,7 +148,7 @@ def main(argv):
                             action='store',
                             dest='json',
                             help= '[REQUIRED] Json file containing config & variables to expand')
-    arg_parser.add_argument('--serve',
+    arg_parser.add_argument('--serv',
                             action="store_true",
                             help= '[Optional] Start a server at output past')
     arg_parser.add_argument('--scan',
@@ -160,18 +165,25 @@ def main(argv):
     jsonFile = os.path.abspath(args.json)
     assert(os.path.isfile(jsonFile))
 
-    jsonData = json.load(open(jsonFile, encoding='utf-8'))
 
     def findFilesAndGenerate():
-        print("Generating...")
+
+        try:
+            jsonData = json.load(open(jsonFile, encoding='utf-8'))
+        except Exception as e:
+            print('Error reading json file {}'.format(jsonFile))
+            print(e)
+
+        print('Generating from {} to {}'.format(rootdir, outputDir))
         files = [f for f in glob.glob(rootdir + '/**/*.html', recursive=True)]
         for file in files:
-            generate(file, jsonData, outputDir)
+            generatedFiles = generate(file, jsonData, outputDir)
+        print('Generated {} files'.format(generatedFiles))
 
     findFilesAndGenerate()
 
     # Spawn server!
-    def serve():
+    def serv():
         os.chdir(outputDir)
         port = 8000
         with socketserver.TCPServer(("", port), http.server.SimpleHTTPRequestHandler) as httpd:
@@ -179,7 +191,6 @@ def main(argv):
             try:
                 httpd.serve_forever()
             except:
-                print("Catched!")
                 raise
 
 
@@ -198,14 +209,14 @@ def main(argv):
         observer.join()
 
     assert os.path.exists(outputDir)
-    if args.serve:
-        t1 = threading.Thread(target=serve)
+    if args.serv:
+        t1 = threading.Thread(target=serv)
         t1.daemon = True
         t1.start()
 
     if args.scan:
        scan()
-    elif args.serve:
+    elif args.serv:
         try:
             while True:
                 time.sleep(1)
