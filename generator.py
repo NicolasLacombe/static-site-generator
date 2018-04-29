@@ -76,9 +76,9 @@ def findAndReplaceKey(input, data):
         key = match.group(1)
         if key in data:
             return data[key]
-        return ''
+        return key
 
-    output = re.sub(r'\{\{([a-zZ-Z-_]*)\}\}', replace, input)
+    output = re.sub(r'\{\{([a-zZ-Z-_1-9]*)\}\}', replace, input)
     return output
 
 # ------------------------------------------------------------------------------
@@ -192,12 +192,12 @@ def main(argv):
 
 
     def findFilesAndGenerate():
-
         try:
             jsonData = json.load(open(jsonFile, encoding='utf-8'))
         except Exception as e:
             print('Error reading json file {}'.format(jsonFile))
             print(e)
+            return
 
         print('Generating from {} to {}'.format(rootdir, outputDir))
         files = [f for f in glob.glob(rootdir + '/**/*.html', recursive=True)]
