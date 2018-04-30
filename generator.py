@@ -71,6 +71,8 @@ class EventHandler(FileSystemEventHandler,):
         super(EventHandler, self).on_modified(event)
         self._callback()
 
+# ------------------------------------------------------------------------------
+
 def findAndReplaceKey(input, data):
     def replace(match):
         key = match.group(1)
@@ -80,8 +82,6 @@ def findAndReplaceKey(input, data):
 
     output = re.sub(r'\{\{([a-zZ-Z-_1-9]*)\}\}', replace, input)
     return output
-
-# ------------------------------------------------------------------------------
 
 def generate(templateFile, jsonData, outputDir):
     assert os.path.isfile(templateFile)
@@ -142,7 +142,7 @@ def generate(templateFile, jsonData, outputDir):
                     filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName)
 
             # Expand Link
-            expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z]*\/)*)(?P<file>[a-zA-Z-_.]+)\"',
+            expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_.]+)\"',
                                      replaceLink,
                                      expandedContent)
 
