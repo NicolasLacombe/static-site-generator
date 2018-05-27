@@ -94,9 +94,6 @@ def generate(templateFile, jsonData, outputDir):
 
     templateFilePath = os.path.dirname(os.path.realpath(templateFile))
     languages        = jsonData[LANGUAGES_KEY]
-    outputFiles      = [os.path.join(outputDir, l, filesMapping[fileName][l] if (fileName in filesMapping and l in filesMapping[fileName]) else fileName) for l in languages]
-
-    assert(len(outputFiles) == len(languages))
 
     def getIncludeFileContent(match):
         """Read a file, expanding <!-- #include --> statements."""
@@ -111,7 +108,7 @@ def generate(templateFile, jsonData, outputDir):
     def getSpecialVariable(match):
         if match.group('variable') == 'FILENAME':
             langId = match.group('lang').lower()
-            return filesMapping[fileName][langId] if fileName in filesMapping and langId in filesMapping[fileName] else fileName
+            return filesMapping[fileName][langId] if fileName in filesMapping and langId in filesMapping[fileName] else filesMapping[fileName][langId + '-link']
         else:
             print('Special Variable {} Unknown!'.format(match.group(1)))
 
@@ -129,8 +126,13 @@ def generate(templateFile, jsonData, outputDir):
                          content)
 
         # Expand Key per language
-        for index, lang in enumerate(languages):
+        for lang in languages:
             assert lang in jsonData
+
+            if not fileName in filesMapping or not lang in filesMapping[fileName]:
+                print("Mapping for file {} does not exists for language {}".format(fileName, lang))
+                continue
+
             languageData = jsonData[lang]
             expandedContent = findAndReplaceKey(content, languageData)
 
@@ -145,13 +147,14 @@ def generate(templateFile, jsonData, outputDir):
             expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_.]+)\"',
                                      replaceLink,
                                      expandedContent)
+            outputFile = os.path.join(outputDir, lang, filesMapping[fileName][lang])
 
-            pathlib.Path(os.path.dirname(outputFiles[index])).mkdir(parents=True, exist_ok=True)
-            with codecs.open(outputFiles[index], 'w', 'utf-8') as fOutput:
+            pathlib.Path(os.path.dirname(outputFile)).mkdir(parents=True, exist_ok=True)
+            with codecs.open(outputFile, 'w', 'utf-8') as fOutput:
                 fOutput.write(expandedContent)
 
-            generatedFilesPath.append(outputFiles[index])
-            print('"{}" => {}'.format(fileName, outputFiles[index]))
+            generatedFilesPath.append(outputFile)
+            print('"{}" => {}'.format(fileName, outputFile))
 
     return generatedFilesPath
 
