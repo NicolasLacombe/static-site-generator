@@ -139,12 +139,22 @@ def generate(templateFile, jsonData, outputDir):
             def replaceLink(match):
                 path = match.group('path')
                 fileName = match.group('file')
-                return 'href="{}{}"'.format(
+                options = match.group('options')
+                print("Replacing {}{}{}".format(path, fileName, options))
+                print('href="{}{}{}"'.format(
                     path,
-                    filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName)
+                    filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
+                    options if options else ''))
+                return 'href="{}{}{}"'.format(
+                    path,
+                    filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
+                    options if options else '')
 
             # Expand Link
-            expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_.]+)\"',
+
+            print("EXPANDING!!!!!!!!!!!")
+            expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_]+\.html|htm)(?P<options>[?#a-zA-Z-_]+)*\"',
+                                     #expandedContent = re.sub(r'href =\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_]+\.(html|htm))(?P<options>[?#a-zA-Z-_]*)\"',
                                      replaceLink,
                                      expandedContent)
             outputFile = os.path.join(outputDir, lang, filesMapping[fileName][lang])
