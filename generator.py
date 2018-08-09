@@ -83,6 +83,24 @@ def findAndReplaceKey(input, data):
     output = re.sub(r'\{\{([a-zZ-Z-_1-9]*)\}\}', replace, input)
     return output
 
+def inlineIncludeResursive(file):
+    filePath = os.path.dirname(os.path.realpath(file))
+    
+    def getIncludeFileContent(match):
+        fileToExpand = os.path.join(filePath, match.group(2))
+        if os.path.exists(fileToExpand):
+            return inlineIncludeResursive(fileToExpand)
+
+        error = "File not found: %s" % fileToRead
+        warnings.warn(error)
+        return error_tmpl % error
+    
+    content = ""
+    with open(file, 'r', encoding='utf-8') as f:
+        content = f.read()
+        content = re.sub(r'<!-- *#include *(virtual)=[\'"]([^\'"]+)[\'"] *-->', getIncludeFileContent, content)
+    return content
+
 def generate(templateFile, jsonData, outputDir):
     assert os.path.isfile(templateFile)
     filesMapping      = jsonData[FILE_MAPPING_KEY]
@@ -95,16 +113,6 @@ def generate(templateFile, jsonData, outputDir):
     templateFilePath = os.path.dirname(os.path.realpath(templateFile))
     languages        = jsonData[LANGUAGES_KEY]
 
-    def getIncludeFileContent(match):
-        """Read a file, expanding <!-- #include --> statements."""
-        fileToRead = os.path.join(templateFilePath, match.group(2))
-        if os.path.exists(fileToRead):
-            return open(fileToRead, encoding='utf-8').read()
-
-        error = "File not found: %s" % fileToRead
-        warnings.warn(error)
-        return error_tmpl % error
-
     def getSpecialVariable(match):
         if match.group('variable') == 'FILENAME':
             langId = match.group('lang').lower()
@@ -112,59 +120,54 @@ def generate(templateFile, jsonData, outputDir):
         else:
             print('Special Variable {} Unknown!'.format(match.group(1)))
 
+    # Expand file include recursively
+    content = inlineIncludeResursive(templateFile);
+    
+    #with open(templateFile, 'r') as fInput:
+    #content = fInput.read()
 
-    with open(templateFile, 'r') as fInput:
-        content = fInput.read()
-        # Expand file include
-        content = re.sub(r'<!-- *#include *(virtual|file)=[\'"]([^\'"]+)[\'"] *-->',
-                         getIncludeFileContent,
-                         content)
+    # Expand "special" variable
+    content = re.sub(r'\$\$(?P<variable>[a-zA-Z-.]+)_*(?P<lang>[A-Z]*)\$\$',
+                        getSpecialVariable,
+                        content)
 
-        # Expand "special" variable
-        content = re.sub(r'\$\$(?P<variable>[a-zA-Z-.]+)_*(?P<lang>[A-Z]*)\$\$',
-                         getSpecialVariable,
-                         content)
+    # Expand Key per language
+    for lang in languages:
+        assert lang in jsonData
 
-        # Expand Key per language
-        for lang in languages:
-            assert lang in jsonData
+        if not fileName in filesMapping or not lang in filesMapping[fileName]:
+            print("Mapping for file {} does not exists for language {}".format(fileName, lang))
+            continue
 
-            if not fileName in filesMapping or not lang in filesMapping[fileName]:
-                print("Mapping for file {} does not exists for language {}".format(fileName, lang))
-                continue
+        languageData = jsonData[lang]
+        expandedContent = findAndReplaceKey(content, languageData)
 
-            languageData = jsonData[lang]
-            expandedContent = findAndReplaceKey(content, languageData)
+        def replaceLink(match):
+            path = match.group('path')
+            fileName = match.group('file')
+            options = match.group('options')
+            print("Replacing {}{}{}".format(path, fileName, options))
+            print('href="{}{}{}"'.format(
+                path,
+                filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
+                options if options else ''))
+            return 'href="{}{}{}"'.format(
+                path,
+                filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
+                options if options else '')
 
-            def replaceLink(match):
-                path = match.group('path')
-                fileName = match.group('file')
-                options = match.group('options')
-                print("Replacing {}{}{}".format(path, fileName, options))
-                print('href="{}{}{}"'.format(
-                    path,
-                    filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
-                    options if options else ''))
-                return 'href="{}{}{}"'.format(
-                    path,
-                    filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
-                    options if options else '')
+        # Expand Link
+        expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_]+\.html|htm)(?P<options>[?#a-zA-Z-_]+)*\"',
+                                    replaceLink,
+                                    expandedContent)
+        outputFile = os.path.join(outputDir, lang, filesMapping[fileName][lang])
 
-            # Expand Link
+        pathlib.Path(os.path.dirname(outputFile)).mkdir(parents=True, exist_ok=True)
+        with codecs.open(outputFile, 'w', 'utf-8') as fOutput:
+            fOutput.write(expandedContent)
 
-            print("EXPANDING!!!!!!!!!!!")
-            expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_]+\.html|htm)(?P<options>[?#a-zA-Z-_]+)*\"',
-                                     #expandedContent = re.sub(r'href =\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_]+\.(html|htm))(?P<options>[?#a-zA-Z-_]*)\"',
-                                     replaceLink,
-                                     expandedContent)
-            outputFile = os.path.join(outputDir, lang, filesMapping[fileName][lang])
-
-            pathlib.Path(os.path.dirname(outputFile)).mkdir(parents=True, exist_ok=True)
-            with codecs.open(outputFile, 'w', 'utf-8') as fOutput:
-                fOutput.write(expandedContent)
-
-            generatedFilesPath.append(outputFile)
-            print('"{}" => {}'.format(fileName, outputFile))
+        generatedFilesPath.append(outputFile)
+        print('"{}" => {}'.format(fileName, outputFile))
 
     return generatedFilesPath
 
