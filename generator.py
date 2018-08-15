@@ -91,7 +91,7 @@ def inlineIncludeResursive(file):
         if os.path.exists(fileToExpand):
             return inlineIncludeResursive(fileToExpand)
 
-        error = "File not found: %s" % fileToRead
+        error = "File not found: %s" % fileToExpand
         warnings.warn(error)
         return error_tmpl % error
     
