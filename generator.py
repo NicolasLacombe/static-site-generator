@@ -116,7 +116,9 @@ def generate(templateFile, jsonData, outputDir):
     def getSpecialVariable(match):
         if match.group('variable') == 'FILENAME':
             langId = match.group('lang').lower()
-            return filesMapping[fileName][langId] if fileName in filesMapping and langId in filesMapping[fileName] else filesMapping[fileName][langId + '-link']
+            newPath = filesMapping[fileName][langId] if fileName in filesMapping and langId in filesMapping[fileName] else filesMapping[fileName][langId + '-link']
+            newPath = re.sub('/index.html', '', newPath)
+            return newPath
         else:
             print('Special Variable {} Unknown!'.format(match.group(1)))
 
@@ -126,7 +128,7 @@ def generate(templateFile, jsonData, outputDir):
     #with open(templateFile, 'r') as fInput:
     #content = fInput.read()
 
-    # Expand "special" variable
+    # Expand "special" variable ($$FILENAME$$ will expand to the predefined filename for the file we're expanding)
     content = re.sub(r'\$\$(?P<variable>[a-zA-Z-.]+)_*(?P<lang>[A-Z]*)\$\$',
                         getSpecialVariable,
                         content)
@@ -146,20 +148,23 @@ def generate(templateFile, jsonData, outputDir):
             path = match.group('path')
             fileName = match.group('file')
             options = match.group('options')
-            print("Replacing {}{}{}".format(path, fileName, options))
-            print('href="{}{}{}"'.format(
+            print("Replacing {}{}{}".format(path, fileName, options if options else ''))
+            newPath = filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName
+            # remove /index.html
+            newPath = re.sub('/index.html', '/', newPath)
+            #newPath += '/'
+            ret = 'href="{}{}{}"'.format(
                 path,
-                filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
-                options if options else ''))
-            return 'href="{}{}{}"'.format(
-                path,
-                filesMapping[fileName][lang] if fileName in filesMapping and lang in filesMapping[fileName] else fileName,
+                newPath,
                 options if options else '')
+            print(ret)
+            return ret
 
-        # Expand Link
-        expandedContent = re.sub(r'href=\"(?P<path>([a-zA-Z\.]*\/)*)(?P<file>[a-zA-Z-_]+\.html|htm)(?P<options>[?#a-zA-Z-_]+)*\"',
-                                    replaceLink,
-                                    expandedContent)
+        # Expand Link into predefined path for specific language
+        regexpr = r'href=\"(?P<path>[-a-zA-Z\/\.]*\/)(?P<file>[a-zA-Z-_]+\.html|htm)(?P<options>[?#a-zA-Z-_]+)*\"'
+        expandedContent = re.sub(regexpr,
+                                 replaceLink,
+                                 expandedContent)
         outputFile = os.path.join(outputDir, lang, filesMapping[fileName][lang])
 
         pathlib.Path(os.path.dirname(outputFile)).mkdir(parents=True, exist_ok=True)
